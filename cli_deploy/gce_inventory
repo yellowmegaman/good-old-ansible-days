@@ -1,0 +1,40 @@
+#!/bin/bash
+purpose="$2"
+action="$1"
+
+list() {
+	if [ "$purpose" != "" ]; then
+		hosts=$(mc -q cat aws-titanium/cli-infra-terraform/gce/terraform.tfstate | jq -r '.modules[].resources | map(select(.type == "google_compute_instance")) | .[] | select(.primary.attributes["metadata.Purpose"] == "'"$purpose"'") | .primary.attributes.name + " ansible_host=" + .primary.attributes["network_interface.0.access_config.0.assigned_nat_ip"] + " privip=" + .primary.attributes["network_interface.0.address"]')
+	else
+		hosts=$(mc -q cat aws-titanium/cli-infra-terraform/gce/terraform.tfstate | jq -r '.modules[].resources | map(select(.type == "google_compute_instance")) | .[] | .primary.attributes.name + " ansible_host=" + .primary.attributes["network_interface.0.access_config.0.assigned_nat_ip"] + " privip=" + .primary.attributes["network_interface.0.address"]')
+	fi
+	echo "$hosts"
+}
+
+tmuxssh() {
+	echo "$(list)" | sort | while read line
+	do
+		tmuxls=$(tmux ls | grep "$purpose")
+		name=$(echo "$line" | awk '{print $1}')
+		pubip=$(echo "$line" | awk '{print $2}' | cut -d '=' -f2)
+		if [ "$tmuxls" == "" ]; then
+			tmux new -ds "$purpose" "ssh -o StrictHostKeyChecking=no $pubip"
+		else
+			tmux split-window -t "$purpose" -v "ssh -o StrictHostKeyChecking=no $pubip"
+			tmux select-layout -t "$purpose" tiled
+		fi
+	done
+	tmux a -t "$purpose"
+}
+
+help() {
+	echo "Example: $0 list/tmux dev"
+}
+
+case "$action" in
+	list) list;;
+	tmux) tmuxssh;;
+	*) help;;
+	"") help;;
+esac
+

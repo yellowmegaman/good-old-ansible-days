@@ -1,0 +1,44 @@
+---
+- name: define app name
+  set_fact: app_name="flannel"
+  tags: ['deploy_flannel']
+
+- name: define version
+  set_fact: app_conf="/etc/{{app_name}}"
+  tags: ['deploy_flannel']
+
+- name: prepare directories
+  file: path="{{app_conf}}" state=directory
+  tags: ['deploy_flannel']
+
+- name: stop flannel
+  systemd: name=flannel state=stopped
+  tags: ['undeploy_flannel']
+
+- name: remove flannel config dirs and files
+  file: path="{{item}}" state=absent
+  with_items:
+   - "/lib/systemd/system/flannel.service"
+  tags: ['undeploy_flannel']
+
+- name: get flannel
+  get_url: url="{{flannel_url}}" dest=/usr/bin/flannel mode=0755
+  tags: ['deploy_flannel']
+
+- name: template flannel and docker configs
+  template: src="{{item.file}}" dest="{{item.path}}" backup=yes
+  with_items:
+    - { file: "docker.service", path: "/lib/systemd/system" }
+    - { file: "flannel.service", path: "/lib/systemd/system" }
+    - { file: "consul.service", path: "{{app_conf}}" }
+  tags: ['deploy_flannel']
+
+- name: update systemd flannel conf
+  systemd: name="flannel" state=restarted daemon_reload=yes enabled=yes
+  tags: ['deploy_flannel']
+- name: sane timeout
+  pause: seconds=3
+
+- name: update systemd docker conf
+  systemd: name="docker" state=restarted daemon_reload=yes enabled=yes
+  tags: ['deploy_flannel']

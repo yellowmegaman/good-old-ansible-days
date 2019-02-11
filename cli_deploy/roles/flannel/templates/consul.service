@@ -1,0 +1,14 @@
+{
+  "ID": "flannel-{{inventory_hostname}}",
+  "Name": "flannel",
+  "Node": "flannel-{{inventory_hostname}}",
+  "Tags": [
+    "{{inventory_hostname}}"
+  ],
+  "Address": "{{privip}}",
+  "Check": {
+    "Script": "pgrep flannel",
+    "DeregisterCriticalServiceAfter": "1m",
+    "Interval": "5s"
+  }
+}

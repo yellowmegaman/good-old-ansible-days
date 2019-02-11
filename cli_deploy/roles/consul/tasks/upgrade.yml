@@ -1,0 +1,4 @@
+---
+- include: install.yml
+- include: supervise.yml action="restarted"
+- include: leader_members_check.yml

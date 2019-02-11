@@ -1,0 +1,33 @@
+---
+
+- name: ensure consul-template is present
+  include: consul-template.yml
+  tags: ['deploy_app']
+
+- name: define template directory
+  set_fact: template_dir="/opt"
+  tags: ['deploy_app']
+
+- name: canary
+  set_fact:
+    tag: "{{canary_tag}}"
+    type: "canary"
+  when: not((canary_tag is undefined) or (canary_tag is none) or (canary_tag|trim == ''))
+  tags: ['deploy_app']
+
+- name: start logic
+  include: stable-canary.yml
+  when: not((canary_tag is undefined) or (canary_tag is none) or (canary_tag|trim == ''))
+  tags: ['deploy_app']
+
+- name: stable
+  set_fact:
+    tag: "{{stable_tag}}"
+    type: "stable"
+  when: not((stable_tag is undefined) or (stable_tag is none) or (stable_tag|trim == '')) 
+  tags: ['deploy_app']
+
+- name: start logic
+  include: stable-canary.yml
+  when: not((stable_tag is undefined) or (stable_tag is none) or (stable_tag|trim == ''))
+  tags: ['deploy_app']

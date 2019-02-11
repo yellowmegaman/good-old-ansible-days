@@ -1,0 +1,44 @@
+#####
+# role: consul
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_consul_server' -e 'rolename=consul target=consul shard_environment=ngdev'
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_consul_client' -e 'rolename=consul target=workers shard_environment=ngdev'
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_consul_values' -e 'rolename=consul target=consul shard_environment=ngdev'
+# redeploy consul bump version
+# ansible-playbook -i inventory cli_deploy.yml --tags 'undeploy_consul_server,deploy_consul_server,deploy_consul_values' -e 'rolename=consul target=consul shard_environment=cnscp'
+#####
+
+#####
+# role: docker_swarm
+# swarm on consul nodes
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_docker_swarm' -e 'rolename=docker_swarm target=consul'
+# add the rest (any)
+# ansible-playbook -i inventory cli_deploy.yml --tags 'add_nodes_docker_swarm'
+#####
+
+#####
+# role: flannel
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_flannel' -e 'rolename=flannel target=worker-loi'
+#####
+
+#####
+# role: nomad
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_nomad_server' -e 'rolename=nomad target=consul shard_environment=ngdev'
+# ansible-playbook -i inventory cli_deploy.yml --tags 'deploy_nomad_client' -e 'rolename=nomad target=workers shard_environment=ngdev'
+#####
+
+#####
+# role: nomad_jobs
+# ansible-playbook -i inventory cli_deploy.yml --tags 'nomad_etcd' -e 'rolename=nomad_jobs target=workers shard_environment=ngdev'
+#####
+
+#####
+# role: teamcity-agent
+# ansible-playbook -i inventory cli_deploy.yml  -e 'rolename=teamcity-agent'
+#####
+
+---
+- hosts: "{{target}}*"
+  serial: "{{serial|default('100%')}}"
+  become: yes
+  roles:
+    - "{{rolename}}"

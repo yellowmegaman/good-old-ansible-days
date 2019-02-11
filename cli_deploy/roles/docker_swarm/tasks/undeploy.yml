@@ -1,0 +1,26 @@
+---
+- name: find out whenever node already in swarm
+  command: "docker info"
+  register: "docker_info"
+  tags: ['undeploy_docker_swarm']
+
+- name: check if consul network exist
+  command: docker network ls
+  register: docker_network_ls
+  run_once: yes
+  when: >
+    'Swarm{{":"}} active' in docker_info.stdout
+  tags: ['undeploy_docker_swarm']
+
+- name: remove overlay network
+  command: docker network rm consul
+  run_once: yes
+  when: >
+    'Swarm: active' in docker_info.stdout and 'consul' in docker_network_ls.stdout
+  tags: ['undeploy_docker_swarm']
+
+- name: leave swarm
+  command: docker swarm leave --force
+  when: >
+    'Swarm: active' in docker_info.stdout
+  tags: ['undeploy_docker_swarm']

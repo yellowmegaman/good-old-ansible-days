@@ -1,0 +1,6 @@
+---
+- name: template server configs
+  template: src="{{item.file}}" dest="{{item.path}}"
+  with_items:
+    - { file: "config.hcl", path: "{{consul_etc}}/config.hcl" }
+    - { file: "consul.service", path: "/lib/systemd/system" }

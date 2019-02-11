@@ -1,0 +1,10 @@
+---
+- name: login to registry
+  command: "docker login -u {{registry_user}} -p {{registry_pass}} registry.titanium.im"
+  tags: ['login_docker_swarm']
+  register: login
+  become_user: "{{ansible_user}}"
+
+- name: get result
+  debug: msg="{{login.stdout}}"
+  tags: ['login_docker_swarm']

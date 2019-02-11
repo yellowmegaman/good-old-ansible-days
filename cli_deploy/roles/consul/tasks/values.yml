@@ -1,0 +1,104 @@
+---
+
+- name: apps
+  apt: name="{{item.name}}" state="{{item.state}}"
+  with_items:
+    - { name: "python-setuptools", state: "latest" }
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']
+
+- name: install pip
+  easy_install: name="pip" state=latest
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']
+
+- name: install pip packages
+  pip: name="{{item}}" state=latest
+  with_items:
+    - "python-consul"
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']
+
+### check leader start ###
+
+- name: check whenever leader is reelected again
+  shell: curl -s http://127.0.0.1:8500/v1/status/leader
+  register: result
+  until: result.stdout.find("8300") != -1
+  retries: 10
+  delay: 10
+  run_once: yes
+  tags: ['deploy_consul_server','deploy_consul_client']
+
+### check leader end ###
+
+### logic start ###
+
+- name: determine whenever shard is dev/stage/prod
+  set_fact: 
+    shard_custom: '{% if shard_environment == "dev" or shard_environment == "stage" or shard_environment == "prod" %}true{% else %}false{% endif %}'
+    kv_dir: '/opt'
+    consul_host: "{{privip}}"
+    clone_to: "{{config_clone}}"
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']
+
+### logic end ###
+
+### git values start ###
+
+- name: cleanup
+  file: path="{{config_clone}}" state=absent
+  run_once: yes
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']
+
+- name: get configs from repo
+  become: no
+  local_action: git repo="{{config_repo}}" clone=true dest="{{config_clone}}" version="{{config_commit}}" key_file="/var/lib/jenkins/.ssh/id_rsa_emik0_workbox" accept_hostkey=true ssh_opts="-o StrictHostKeyChecking=no"
+  register: gitinfo
+  run_once: yes
+  tags: ['deploy_consul_values']
+
+### git values end ###
+
+- name: load default values
+  include_vars: file="{{clone_to}}/{{item.file}}" name="{{item.name}}"
+  with_items:
+    - { file: "template.yaml", name: "template_keys" }
+    - { file: "template_sensitive.yaml", name: "template_keys_sensitive" }
+  tags: ['deploy_consul_values']
+
+- name: load shard values
+  include_vars: file="{{clone_to}}/{{item.file}}" name="{{item.name}}"
+  with_items:
+    - { file: "{{shard_environment}}.yaml", name: "shard_keys" }
+    - { file: "{{shard_environment}}_sensitive.yaml", name: "shard_keys_sensitive" }
+  when: shard_custom | bool
+  tags: ['deploy_consul_values']
+
+- name: merge default and shard files
+  set_fact: 
+    united_keys: "{{template_keys|combine(shard_keys)}}"
+    united_keys_sensitive: "{{template_keys_sensitive|combine(shard_keys_sensitive)}}"
+  when: shard_custom | bool
+  tags: ['deploy_consul_values']
+
+- name: put keys in consul
+  consul_kv: key="{{item.key}}" value="{{item.value}}" host="{{consul_host}}"
+  with_dict: "{{template_keys}}"
+  when: not shard_custom | bool
+  tags: ['deploy_consul_values']
+
+- name: put sensitive keys in consul
+  consul_kv: key="{{item.key}}" value="{{item.value}}" host="{{consul_host}}"
+  with_dict: "{{template_keys_sensitive}}"
+  when: not shard_custom | bool
+  tags: ['deploy_consul_values']
+
+- name: put skeys in consul
+  consul_kv: key="{{item.key}}" value="{{item.value}}" host="{{consul_host}}"
+  with_dict: "{{united_keys}}"
+  when: shard_custom | bool
+  tags: ['deploy_consul_values']
+
+- name: put sensitive skeys in consul
+  consul_kv: key="{{item.key}}" value="{{item.value}}" host="{{consul_host}}"
+  with_dict: "{{united_keys_sensitive}}"
+  when: shard_custom | bool
+  tags: ['deploy_consul_values']

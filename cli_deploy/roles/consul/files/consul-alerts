@@ -1,0 +1,100 @@
+#!/usr/bin/python
+import sys
+import json
+import requests
+import time
+import base64
+
+def kv(method, key, data="",timestamp=None):
+   request_method = {'get':requests.get, 'delete': requests.delete, 'put': requests.put}
+   if timestamp is None:
+      tmstmp = ""
+   else:
+      tmstmp = "?flags=" + timestamp
+   return(request_method[method]("http://" + consul + "/v1/kv/" + key + tmstmp, data=data).text)
+
+consul           = "127.0.0.1:8500"
+dc               = kv("get","shard_environment?raw")
+mute_mode        = kv("get","monitor/mute_mode?raw")
+number_list      = kv("get","monitor/number_list?raw")
+plivo_number     = kv("get","monitor/plivo_number?raw")
+plivo_auth_id    = kv("get","monitor/plivo_auth_id?raw")
+plivo_auth_token = kv("get","monitor/plivo_auth_token?raw")
+message_url      = kv("get","monitor/plivo_message_url?raw")
+plivo_api_url    = "https://api.plivo.com/v1/Account/" + plivo_auth_id
+plivo_headers    = {'content-type': 'application/json'}
+slack_url        = kv("get","monitor/slack_url?raw")
+slack_username   = kv("get","monitor/slack_username?raw")
+slack_icon_url   = kv("get","monitor/slack_icon_url?raw")
+
+def plivo_call():
+   for number in number_list.split(','):
+      payload = {'to' : number, 'from' : plivo_number, 'answer_url' : message_url, 'answer_method' : 'GET'}
+      r = requests.post((plivo_api_url + "/Call/"), data=json.dumps(payload), auth=(plivo_auth_id, plivo_auth_token), headers=plivo_headers)
+
+def plivo_sms(text):
+   for number in number_list.split(','):
+      payload = {'src' : 'Titanium', 'dst' : number, 'message' : text, 'type' : 'sms'}
+      r = requests.post((plivo_api_url + "/Message/"), data=json.dumps(payload), auth=(plivo_auth_id, plivo_auth_token), headers=plivo_headers)
+
+def slack_msg(message):
+   r = requests.post(slack_url, json={'text': message, 'username': 'consul', 'icon_url': slack_icon_url })
+
+def report(status,app,node,dc):
+   payload = (status + " " + app + " " + node + "@" + dc)
+   print(payload)
+   slack_msg(payload)
+   if mute_mode != "true":
+      plivo_sms(payload)
+      if status in ["CRITICAL","WARNING"]: plivo_call()
+
+def main():
+   consul_watch_data = json.load(sys.stdin)
+   # create a list of maint services
+   maintenance_list  = []
+   for key in consul_watch_data:
+      try:
+         if key['Name'] == 'Service Maintenance Mode': maintenance_list.append(key['ServiceID'])
+      except Exception as e:
+         print("There was an error while parsing maintenance_list: {}".format(e))
+         report("MONITORING ERROR " + str(e),"monitoring","none","none")
+
+   # iterate over watch output
+   for service in consul_watch_data:
+      try:
+         status      = service['Status'].upper()
+         app         = service['ServiceName']
+         id          = service['ServiceID']
+         node        = service['Node']
+         timeout     = int(kv("get","monitor/ttl?raw"))
+         try: flags    = json.loads(kv("get","monitor/" + id))[0]['Flags']
+         except: flags = str(sys.maxint)
+         interval    = int(time.time()) - int(flags)
+         now         = str(int(time.time()))
+         try: kv_status = base64.b64decode(json.loads(kv("get","monitor/" + id))[0]['Value'])
+         except: kv_status = ""
+      #print(json.loads(tm)[0]['Flags'])
+      # Since scripts is triggered per any service status change, we write app problematic status as key in kv, so we can find out whenever proble is new or existing, making recovery logic available
+         if (status == "CRITICAL" or status == "WARNING"):
+            if id in maintenance_list:
+               if kv_status == "" or interval > timeout:
+                  report("MAINTENANCE",app,node,dc)
+                  kv("put", "monitor/" + id, "maintenance", now)
+            else:
+               if kv_status == "" or interval > timeout:
+                  report(status,app,node,dc)
+                  kv("put", "monitor/" + id, "problem", now)
+
+         if status == "PASSING":
+           if id not in maintenance_list:
+              if kv_status == "problem":
+                 report("RECOVERY",app,node,dc)
+                 kv("delete","monitor/" + id)
+              elif kv_status == "maintenance":
+                 report("END MAINTENANCE",app,node,dc)
+                 kv("delete","monitor/" + id)
+      except Exception as e:
+         report("MONITORING ERROR " + str(e),"monitoring","none","none")
+
+if __name__ == "__main__":
+    main()

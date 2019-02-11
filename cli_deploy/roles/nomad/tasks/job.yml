@@ -1,0 +1,8 @@
+---
+- name: template {{job_name}} job
+  template: src="jobs/{{job_name}}.nomad" dest="/opt/"
+  tags: ['nomad_job']
+
+- name: launch {{job_name}} job
+  command: "nomad run /opt/{{job_name}}.nomad"
+  tags: ['nomad_job']

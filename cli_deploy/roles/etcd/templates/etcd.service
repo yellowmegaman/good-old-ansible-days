@@ -1,0 +1,19 @@
+[Unit]
+Description=etcd3 service
+After=network.target consul.service
+
+[Service]
+#Type=notify
+ExecStart=/usr/bin/etcd --config-file {{app_conf}}/etcd.conf
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStartPost=/bin/sh -c 'curl -X PUT -d @/etc/etcd/consul.service http://127.0.0.1:8500/v1/agent/service/register'
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

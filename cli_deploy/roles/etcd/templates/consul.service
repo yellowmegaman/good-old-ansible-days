@@ -1,0 +1,15 @@
+{
+  "ID": "etcd-{{inventory_hostname}}",
+  "Name": "etcd",
+  "Node": "etcd-{{inventory_hostname}}",
+  "Tags": [
+    "{{inventory_hostname}}"
+  ],
+  "Address": "{{privip}}",
+  "Port": 2379,
+  "Check": {
+    "Script": "nc -z {{privip}} 2379",
+    "DeregisterCriticalServiceAfter": "1m",
+    "Interval": "5s"
+  }
+}

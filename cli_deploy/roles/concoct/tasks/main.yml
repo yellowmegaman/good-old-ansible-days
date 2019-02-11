@@ -1,0 +1,101 @@
+---
+- name: https apt transport
+  apt: name="{{item.name}}" state="{{item.state}}" update_cache=yes
+  with_items:
+    - { name: "apt-transport-https", state: "latest" }
+  tags: ['concoct']
+
+- name: add apt keys
+  apt_key: url="https://download.docker.com/linux/{{ansible_distribution|lower}}/gpg" state=present
+  tags: ['concoct']
+
+- name: add apt repos
+  apt_repository: repo="{{item.url}}" filename="{{item.name}}" state=present
+  with_items:
+    - { name: "docker", url: "deb https://download.docker.com/linux/{{ansible_distribution|lower}} {{ansible_distribution_release}} stable" }
+  tags: ['concoct']
+
+- name: apt-apps
+  apt: name="{{item.name}}" state="{{item.state}}" update_cache=yes
+  with_items:
+    - { name: "apt-transport-https",  state: "latest" }
+    - { name: "python-setuptools",    state: "latest" }
+    - { name: "curl",                 state: "latest" }
+    - { name: "docker-ce",            state: "latest" }
+    - { name: "htop",                 state: "latest" }
+    - { name: "net-tools",            state: "latest" }
+    - { name: "dnsutils",             state: "latest" }
+    - { name: "python-minimal",       state: "latest" }
+    - { name: "ufw",                  state: "latest" }
+    - { name: "sysstat",              state: "latest" }
+    - { name: "dstat",                state: "latest" }
+    - { name: "ntp",                  state: "latest" }
+    - { name: "bash-completion",      state: "latest" }
+    - { name: "sudo",                 state: "latest" }
+    - { name: "pv",                   state: "latest" }
+    - { name: "jq",                   state: "latest" }
+    - { name: "vim",                  state: "latest" }
+    - { name: "unzip",                state: "latest" }
+    - { name: "zip",                  state: "latest" }
+    - { name: "iperf",                state: "latest" }
+    - { name: "accountservice",       state: "absent" }
+    - { name: "lxd",                  state: "absent" }
+    - { name: "lxc-common",           state: "absent" }
+  tags: ['concoct']
+
+- name: add easy_install-apps
+  easy_install: name=requests
+  tags: ['concoct']
+
+- name: ensure user exist
+  user: name=ubuntu groups='docker,sudo' append=yes shell='/bin/bash'
+  tags: ['concoct']
+
+- name: create list of keys
+  set_fact: keys="{{ lookup('file', 'keys') }}"
+  tags: ['concoct']
+
+- name: add team ssh keys
+  authorized_key:
+    user: ubuntu
+    state: present
+    key: "{{item}}"
+  with_items: "{{keys}}"
+  tags: ['concoct']
+
+- name: make host distributed network friendly
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: yes
+  tags: ['concoct']
+
+- name: perform dist-upgrade
+  apt:
+    upgrade: dist
+    update_cache: yes
+  tags: ['concoct']
+
+- name: deploy telegraf
+  include: telegraf.yml
+  tags: ['concoct_telegraf']
+
+- name: fix systemd if devices names
+  lineinfile: dest="/etc/default/grub" regexp="^GRUB_CMDLINE_LINUX" line='GRUB_CMDLINE_LINUX="net.ifnames=0"'
+  register: grubcfg
+  tags: ['concoct', 'grub']
+
+- name: check grub2
+  command: "dpkg -l grub2"
+  ignore_errors: yes
+  register: grub2
+  tags: ['concoct', 'grub']
+
+- name: update grub
+  shell: update-grub2
+  when: "grubcfg.changed and grub2.rc == 0"
+  tags: ['concoct', 'grub']
+
+- name: apply ufw rules if it's fresh install
+  include: ufw.yml
+  tags: ['concoct', 'ufw']

@@ -1,0 +1,16 @@
+---
+- name: check whenever leader is elected
+  uri: url="http://127.0.0.1:8500/v1/status/leader" return_content=yes
+  register: response
+  until: response.json is defined and "8300" in response.json
+  retries: 15
+  delay: 2
+  run_once: yes
+
+- name: check whenever this node is actually a member
+  uri: url="http://127.0.0.1:8500/v1/agent/members" return_content=yes
+  register: node_response
+  until: node_response.json is defined and node_response.json|json_query('[*].Addr')|intersect(groups.all | map('extract', hostvars, ['privip']) | join(',')) | count == groups.all|count
+  retries: 15
+  delay: 2
+  run_once: yes

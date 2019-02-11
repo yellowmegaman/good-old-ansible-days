@@ -1,0 +1,19 @@
+[Unit]
+Description=Flannel service
+After=network.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/flannel -iface={{privip}} -etcd-endpoints=http://etcd.service.consul:2379
+ExecStartPost=/bin/sh -c 'curl -X PUT -d @/etc/flannel/consul.service http://127.0.0.1:8500/v1/agent/service/register'
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

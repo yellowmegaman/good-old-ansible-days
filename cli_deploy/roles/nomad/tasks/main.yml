@@ -1,0 +1,60 @@
+---
+- name: stop nomad
+  systemd: name=nomad state=stopped
+  ignore_errors: yes
+  tags: ['undeploy_nomad']
+
+- name: remove nomad config dirs and files
+  file: path="{{item}}" state=absent
+  with_items:
+   - /usr/bin/nomad
+   - "{{nomad_etc}}"
+   - "{{nomad_dir}}"
+   - "/lib/systemd/system/nomad.service"
+  tags: ['undeploy_nomad']
+
+- name: get nomad
+  unarchive: src="{{nomad_url}}" dest=/usr/bin owner=root group=root mode=0755 remote_src=yes
+  tags: ['deploy_nomad_server','deploy_nomad_client', 'upgrade']
+
+- name: create nomad config dirs
+  file: path="{{item}}" state=directory
+  with_items:
+   - "{{nomad_etc}}"
+   - "{{nomad_dir}}"
+  tags: ['deploy_nomad_server','deploy_nomad_client']
+
+- name: create list of nomad server privips
+  set_fact: nomad_ips="{% for h in play_hosts %}"{{hostvars[h].privip}}",{% endfor %}"
+  run_once: yes
+  tags: ['deploy_nomad_server']
+
+- name: create list of consullb privips
+  set_fact: nomad_ips="{% if masters is undefined or masters == "" %}{% for h in groups['all'] %}{% if master in h %}"{{hostvars[h].privip}}",{% endif %}{% endfor %}{% else %}{% for h in masters.split(',') %}"{{hostvars[h].privip}}",{% endfor %}{% endif%}"
+  run_once: yes
+  tags: ['deploy_nomad_client']
+
+- name: template config files
+  template: src="{{item.file}}" dest="{{item.path}}"
+  with_items:
+    - { file: "config_client.hcl", path: "{{nomad_etc}}/config.hcl" }
+    - { file: "nomad.service", path: "/lib/systemd/system" }
+  tags: ['deploy_nomad_client']
+
+- name: template config files
+  template: src="{{item.file}}" dest="{{item.path}}"
+  with_items:
+    - { file: "config.hcl", path: "{{nomad_etc}}/config.hcl" }
+    - { file: "nomad.service", path: "/lib/systemd/system" }
+  tags: ['deploy_nomad_server']
+
+- name: update systemd conf and run nomad
+  systemd: name=nomad state=started daemon_reload=yes enabled=yes
+  tags: ['deploy_nomad_server','deploy_nomad_client']
+
+- name: restart nomad
+  systemd: name=nomad state=restarted
+  tags: ['upgrade']
+
+- include: job.yml
+- include: deploy_app.yml

@@ -1,0 +1,11 @@
+---
+- name: stop consul
+  include: supervise.yml action="stopped" enabled="false" ignore="true"
+
+- name: remove consul config dirs and files
+  file: path="{{item}}" state=absent
+  with_items:
+   - /usr/bin/consul
+   - "{{consul_etc}}"
+   - "{{consul_dir}}"
+   - "/lib/systemd/system/consul.service"

@@ -1,0 +1,20 @@
+---
+- name: add influxdata apt key
+  apt_key: url="https://repos.influxdata.com/influxdb.key" state=present
+  tags: ['concoct_telegraf']
+
+- name: add influxdata repo
+  apt_repository: repo='deb https://repos.influxdata.com/{{ansible_distribution|lower}} {{ansible_distribution_release|lower}} stable'
+  tags: ['concoct_telegraf']
+
+- name: install telegraf
+  apt: pkg="telegraf" state=latest update_cache=yes
+  tags: ['concoct_telegraf']
+
+- name: add telegraf to group
+  user: name=telegraf groups=docker append=yes
+  tags: ['concoct_telegraf']
+
+- name: disable telegraf
+  service: name=telegraf state=stopped enabled=no
+  tags: ['concoct_telegraf']

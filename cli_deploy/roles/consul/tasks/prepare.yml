@@ -1,0 +1,9 @@
+---
+- name: prevent systemd from listening 53
+  include: supervise.yml app="systemd-resolved" action="stopped" enabled="false" ignore="true"
+
+- name: create consul config dirs
+  file: path="{{item}}" state=directory
+  with_items:
+   - "{{consul_etc}}"
+   - "{{consul_dir}}"

@@ -1,0 +1,37 @@
+---
+
+- name: copy {{type}} {{job_name}} job file
+  copy: src="{{job_name}}.nomad" dest="{{template_dir}}"
+
+- name: get {{type}} {{job_name}} count
+  shell: "consul kv get deployment/service/{{job_name}}/count/{{type}}"
+  register: count
+  when: ("mmts" in job_name or "nginx" in job_name)
+  tags: ['deploy_app']
+
+- name: overwrite {{type}} {{job_name}} version
+  shell: "consul kv put deployment/service/{{job_name}}/version/{{type}} {{tag}}"
+  when: tag is defined and tag is not none and (tag|trim != '')
+
+- name: overwrite disable fastboot
+  shell: "consul kv put backend/fast_boot false"
+  when: ("backend" in job_name)
+
+- name: template {{type}} {{job_name}} file
+  command: "consul-template -once -template {{template_dir}}/{{job_name}}.nomad:{{template_dir}}/{{job_name}}.ready"
+
+- name: launch {{type}} {{job_name}} job
+  command: "nomad run {{template_dir}}/{{job_name}}.ready"
+
+- name: time to pray for {{type}} {{job_name}}
+  uri: url="http://127.0.0.1:8500/v1/catalog/service/{{job_name}}?passing=true&tag=deploy_{{type}}" return_content=yes
+  register: response
+  until: response.json is defined and tag in response.json|json_query('[*].ServiceTags[]')
+  retries: 20
+  delay: 10
+  run_once: yes
+  when: (count.stdout is defined and count.stdout != "0") or (count is undefined and "mmts" not in job_name)
+
+- name: overwrite enable fastboot
+  shell: "consul kv put backend/fast_boot true"
+  when: ("backend" in job_name)

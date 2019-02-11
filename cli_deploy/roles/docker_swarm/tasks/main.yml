@@ -1,0 +1,5 @@
+---
+- include: deploy.yml
+- include: undeploy.yml
+- include: add_nodes.yml
+- include: login.yml

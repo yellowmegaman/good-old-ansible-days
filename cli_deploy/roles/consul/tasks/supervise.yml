@@ -1,0 +1,4 @@
+---
+- name: perform supervising action
+  systemd: name="{{app|default('consul')}}" state="{{action}}" daemon_reload="{{reload|default('yes')}}" enabled="{{enabled|default('true')|bool}}"
+  ignore_errors: "{{ignore|default('false')|bool}}"

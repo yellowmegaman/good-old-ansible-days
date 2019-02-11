@@ -1,0 +1,7 @@
+---
+- include: template_config.yml consul_bootstrap='true'        # boostrap mode config
+- include: supervise.yml action="restarted"                   # restart
+- include: leader_members_check.yml                           # check whenever it worked
+- include: template_config.yml consul_bootstrap='false'       # disable boostrap mode
+- include: supervise.yml action="restarted"                   # restart
+- include: leader_members_check.yml                           # check whenever it worked

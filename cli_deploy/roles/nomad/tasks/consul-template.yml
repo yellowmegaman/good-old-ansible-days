@@ -1,0 +1,9 @@
+---
+- name: try to execute consul-template
+  command: "consul-template -version"
+  ignore_errors: yes
+  register: ct
+
+- name: get consul-template if is absent
+  unarchive: src="{{consul_template_url}}" dest="/usr/bin/" mode=0755 remote_src=true
+  when: "ct.rc != 0"

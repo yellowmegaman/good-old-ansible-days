@@ -1,0 +1,4 @@
+---
+- include: template_config.yml consul_bootstrap='false'       # prepare and install already called, we're templating config
+- include: supervise.yml action="restarted"                   # restart
+- include: leader_members_check.yml                           # check whenever it worked

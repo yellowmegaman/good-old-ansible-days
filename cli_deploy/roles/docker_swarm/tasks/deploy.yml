@@ -1,0 +1,48 @@
+---
+- name: find out whenever node already in swarm
+  command: "docker info"
+  register: "docker_info"
+  tags: ['deploy_docker_swarm']
+
+- name: really awesome election >_<
+  command: echo "{{inventory_hostname}}"
+  run_once: true
+  register: leader
+  tags: ['deploy_docker_swarm']
+
+- name: init swarm mode
+  command: docker swarm init
+  when: leader is defined and leader.stdout == inventory_hostname and 'Swarm{{":"}} inactive' in docker_info.stdout
+  tags: ['deploy_docker_swarm']
+
+- name: get manager token
+  shell: docker swarm join-token -q manager
+  register: manager_token
+  when: leader is defined and leader.stdout == inventory_hostname
+  tags: ['deploy_docker_swarm']
+
+- name: join all other nodes
+  command: "docker swarm join --token {{(hostvars[leader.stdout]['manager_token']).stdout}} {{hostvars[leader.stdout].privip}}:2377"
+  when: leader is defined and leader.stdout != inventory_hostname and 'Swarm{{":"}} inactive' in docker_info.stdout
+  tags: ['deploy_docker_swarm']
+
+- name: check if consul network exist
+  command: docker network ls
+  register: docker_network_ls
+  when: leader is defined and leader.stdout == inventory_hostname
+  tags: ['deploy_docker_swarm']
+
+- name: create overlay network
+  command: docker network create --attachable --driver overlay --subnet 18.18.0.0/16 consul
+  when: leader is defined and leader.stdout == inventory_hostname and 'consul' not in docker_network_ls.stdout
+  tags: ['deploy_docker_swarm']
+
+- name: form list of node constraints
+  set_fact: constraints="{% for h in hostvars[inventory_hostname].constraints.split(',') %}--label-add {{h}}=true {% endfor %}"
+  when: hostvars[inventory_hostname].constraints is defined and hostvars[inventory_hostname].constraints != ""
+  tags: ['deploy_docker_swarm']
+
+- name: set node labels for constraints
+  command: "docker node update {{constraints}} {{inventory_hostname}}"
+  when: hostvars[inventory_hostname].constraints is defined and constraints != ""
+  tags: ['deploy_docker_swarm']

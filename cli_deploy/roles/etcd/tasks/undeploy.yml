@@ -1,0 +1,22 @@
+---
+- name: define app name
+  set_fact: app_name="etcd"
+  tags: ['undeploy_etcd']
+
+- name: define version
+  set_fact:
+     app_conf: "/etc/{{app_name}}"
+     app_data: "/var/{{app_name}}"
+  tags: ['undeploy_etcd']
+
+- name: prepare directories
+  file: path="{{item}}" state=absent
+  with_items:
+    - "{{app_conf}}"
+    - "{{app_data}}"
+  tags: ['undeploy_etcd']
+
+- name: stop etcd
+  systemd: name=etcd state=stopped
+  ignore_errors: yes
+  tags: ['undeploy_etcd']

@@ -1,0 +1,29 @@
+#####
+# ansible-playbook pb_inventory.yml -e 'purpose=build-machine output=inventory_uu region=eu-central-1 aws_access_key=key aws_secret_key=key'
+#####
+
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+    - name: get data from aws
+      ec2_remote_facts:
+       aws_access_key: "{{aws_access_key}}"
+       aws_secret_key: "{{aws_secret_key}}"
+       region: "{{region}}"
+       filters:
+          instance-state-name: running
+      register: ec2info
+
+    - name: create list
+      set_fact:
+        list: "{% for h in ec2info.instances %}{%- if purpose is undefined and h.tags.Purpose != '' or purpose is defined and purpose == h.tags.Purpose and h.tags.Purpose != '' -%}
+               {{h.tags.Name}}{{'\t'}}ansible_host={{h.public_ip_address}}{{'\t'}}privip={{h.private_ip_address}}{{'\n'}}
+               {%- endif %}{%- endfor %}"
+
+#   - name: in case some time in the future ansible would stop escaping properly newline above you can make it as a separate step
+#     set_fact: ll="{{list[:-1].replace(',', '\n').replace(' ','\t')}}"
+
+    - name: save the list
+      copy: "content={{list}} dest=./{{output}}"

@@ -1,0 +1,25 @@
+---
+
+- include: prepare.yml
+  tags: ['prepare','deploy','add_nodes']
+
+- include: install.yml
+  tags: ['install','deploy','add_nodes']
+
+- include: bootstrap.yml
+  tags: ['bootstrap','deploy']
+
+- include: template_config.yml
+  tags: ['template']
+
+- include: add_nodes.yml
+  tags: ['add_nodes']
+
+- include: upgrade.yml
+  tags: ['upgrade']
+
+- include: undeploy.yml
+  tags: ['undeploy']
+
+- include: values.yml
+  tags: ['deploy_consul_values','deploy_consul_values_sensitive']

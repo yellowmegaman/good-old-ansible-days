@@ -1,0 +1,15 @@
+---
+- name: allow ssh
+  ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+    state: enabled
+
+- name: create list of instance privips
+  set_fact: privips="{% for h in play_hosts %}"{{hostvars[h].privip}}",{% endfor %}"
+  run_once: yes
+
+- name: add privips to ufw allow
+  command: "ufw allow from {{item}} to any"
+  with_items: "{{privips[:-1].split(',')}}"
